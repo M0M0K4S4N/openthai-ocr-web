@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenThai2.0-OCR — ในเบราว์เซอร์ (onnxruntime-web)</title>
+<link rel="stylesheet" href="app.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔍</text></svg>">
+</head>
+<body>
+<header>
+  <h1>🔍 OpenThai2.0-OCR <span class="badge">in-browser</span></h1>
+  <p class="sub">OCR ภาษาไทย ประมวลผล 100% บนเครื่องคุณ — ไม่มีการอัปโหลดรูปไปเซิร์ฟเวอร์ใด ๆ<br>
+  <span class="dim">โมเดล <a href="https://huggingface.co/iapp/OpenThai2.0-OCR-Text" target="_blank" rel="noopener">iapp/OpenThai2.0-OCR-Text</a> (Apache-2.0) · onnxruntime-web (WASM)</span></p>
+</header>
+
+<main>
+  <section id="dropzone" tabindex="0">
+    <div class="dz-inner">
+      <div class="dz-icon">🖼️</div>
+      <p><strong>คลิกเพื่อเลือกรูป</strong> หรือลากรูปมาวางที่นี่ (วางด้วย Ctrl+V ก็ได้)</p>
+      <p class="dim">รองรับ jpg / png / webp — รูปอยู่บนเครื่องทั้งหมด</p>
+    </div>
+    <input type="file" id="file" accept="image/*" hidden>
+  </section>
+
+  <section id="controls" class="row">
+    <button id="btnSample" type="button">✨ ลองกับรูปตัวอย่าง</button>
+    <label class="opt"><input type="checkbox" id="optOrient" checked> auto-orient (หมุน/ดีสกิวอัตโนมัติ)</label>
+    <label class="opt"><input type="checkbox" id="optFilter" checked> กรองบรรทัดความมั่นใจต่ำ</label>
+    <span id="status" class="status">ยังไม่ได้โหลดโมเดล — เริ่มใช้งานได้เลย โมเดลจะโหลดครั้งแรกครั้งเดียว</span>
+  </section>
+
+  <section id="previewWrap" class="hidden">
+    <h2>รูปที่วิเคราะห์ <span class="dim small">(กรอบเขียว = บรรทัดที่อ่านได้, แดง = กรองทิ้ง)</span></h2>
+    <div id="previewScroller"><canvas id="preview"></canvas></div>
+  </section>
+
+  <section id="resultWrap" class="hidden">
+    <div class="row spread">
+      <h2>ผล OCR</h2>
+      <div class="row">
+        <button id="btnCopy" type="button">📋 คัดลอก</button>
+        <button id="btnClear" type="button">✖ ล้าง</button>
+      </div>
+    </div>
+    <textarea id="out" rows="10" placeholder="ข้อความที่ OCR ได้จะแสดงที่นี่..." spellcheck="false"></textarea>
+    <div id="stats" class="stats"></div>
+  </section>
+
+  <footer>
+    <span class="dim">รันได้เฉพาะจาก http(s) หรือ localhost (โมเดลโหลดผ่าน fetch) · WASM ต้องการสัญญาณเน็ตครั้งแรกเพื่อดึง runtime จาก CDN</span>
+  </footer>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort.min.js"></script>
+<script src="engine.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

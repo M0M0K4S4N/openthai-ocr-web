@@ -1,0 +1,84 @@
+:root {
+  --bg: #0f1420;
+  --panel: #171e2e;
+  --panel2: #1d2638;
+  --line: #2a3550;
+  --text: #e8edf6;
+  --dim: #93a0b8;
+  --accent: #4f9cff;
+  --ok: #34d399;
+  --bad: #f87171;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, "Thonburi", "Sukhumvit Set", "Sarabun",
+    "Segoe UI", sans-serif;
+  line-height: 1.55;
+}
+header { max-width: 880px; margin: 0 auto; padding: 28px 20px 6px; }
+h1 { margin: 0 0 4px; font-size: 26px; }
+.badge {
+  font-size: 12px; vertical-align: middle; background: #23406b;
+  color: #9cc4ff; border-radius: 999px; padding: 3px 10px; margin-left: 6px;
+}
+.sub { margin: 0; color: var(--dim); font-size: 14px; }
+.dim { color: var(--dim); }
+.small { font-size: 12px; font-weight: normal; }
+a { color: var(--accent); }
+
+main { max-width: 880px; margin: 0 auto; padding: 12px 20px 40px; }
+section { margin: 14px 0; }
+.hidden { display: none; }
+
+#dropzone {
+  border: 2px dashed var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+#dropzone:hover, #dropzone.drag {
+  border-color: var(--accent);
+  background: var(--panel2);
+}
+.dz-inner { text-align: center; padding: 34px 16px; }
+.dz-icon { font-size: 40px; }
+#dropzone p { margin: 6px 0; }
+
+.row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.spread { justify-content: space-between; }
+button {
+  background: var(--accent); border: none; color: #fff;
+  border-radius: 10px; padding: 9px 16px; font-size: 14px;
+  cursor: pointer; font-family: inherit;
+}
+button:hover { filter: brightness(1.1); }
+button:disabled { opacity: .45; cursor: wait; }
+button.ghost { background: var(--panel2); color: var(--text); border: 1px solid var(--line); }
+.opt { color: var(--dim); font-size: 13px; user-select: none; }
+
+.status { margin-left: auto; font-size: 13px; color: var(--dim); }
+.status.err { color: var(--bad); }
+.status.ok { color: var(--ok); }
+
+h2 { font-size: 16px; margin: 18px 0 8px; }
+#previewScroller {
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 12px; padding: 10px; overflow: auto; max-height: 460px;
+}
+#preview { max-width: 100%; height: auto; display: block; }
+
+textarea {
+  width: 100%; background: var(--panel); color: var(--text);
+  border: 1px solid var(--line); border-radius: 12px;
+  padding: 12px; font-size: 15px; font-family: inherit; resize: vertical;
+}
+textarea:focus { outline: 1px solid var(--accent); }
+
+.stats { margin-top: 8px; font-size: 13px; color: var(--dim); display: flex; gap: 18px; flex-wrap: wrap; }
+.stats b { color: var(--text); font-weight: 600; }
+
+footer { margin-top: 26px; font-size: 12px; }

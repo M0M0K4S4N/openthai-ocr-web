@@ -1,0 +1,9 @@
+# OpenThai2.0-OCR — in-browser (onnxruntime-web WASM)
+
+OCR ภาษาไทย ทำงานในเบราว์เซอร์ 100% client-side — ไม่มี server, ไม่อัปโหลดรูป
+
+- Model: [iapp/OpenThai2.0-OCR-Text](https://huggingface.co/iapp/OpenThai2.0-OCR-Text) (Apache-2.0) — det.onnx + rec.onnx (~4.2MB) โหลดจาก `models/`
+- Runtime: onnxruntime-web 1.22.0 (WASM) จาก jsDelivr CDN
+- Static site ไม่มี build step — เปิด `index.html` ผ่าน http(s) ได้เลย
+
+ใช้งาน: เลือกรูป / ลากวาง / วาง Ctrl+V → ได้ข้อความใน textarea (มี auto-orient: deskew, หมุน 90°, กลับหัว 180°)
