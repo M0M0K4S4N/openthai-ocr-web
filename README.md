@@ -1,7 +1,7 @@
 # OpenThai2.0-OCR — in-browser (onnxruntime-web WASM)
 
-> 🤖 **AI-generated project** — โค้ดทั้งหมดเขียนโดย AI agent (Hermes) ภายใต้การดูแลของ @M0M0K4S4N
-> This project was entirely written by an AI coding agent, with human direction and review.
+> 🤖 **AI-generated project** — โค้ดทั้งหมดเขียนโดย AI agent (Hermes) โดยไม่มี human review
+> This project was entirely written by an AI coding agent — no human review.
 
 OCR ภาษาไทย ทำงานในเบราว์เซอร์ 100% client-side — ไม่มี server, ไม่อัปโหลดรูป
 
