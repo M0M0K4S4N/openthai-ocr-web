@@ -3,15 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>OpenThai2.0-OCR — ในเบราว์เซอร์ (onnxruntime-web)</title>
+<title>OpenThai OCR — ในเบราว์เซอร์ (onnxruntime-web)</title>
 <link rel="stylesheet" href="app.css">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔍</text></svg>">
 </head>
 <body>
 <header>
-  <h1>🔍 OpenThai2.0-OCR <span class="badge">in-browser</span></h1>
+  <h1>🔍 OpenThai OCR <span class="badge">in-browser</span></h1>
   <p class="sub">OCR ภาษาไทย ประมวลผล 100% บนเครื่องคุณ — ไม่มีการอัปโหลดรูปไปเซิร์ฟเวอร์ใด ๆ<br>
-  <span class="dim">โมเดล <a href="https://huggingface.co/iapp/OpenThai2.0-OCR-Text" target="_blank" rel="noopener">iapp/OpenThai2.0-OCR-Text</a> (Apache-2.0) · onnxruntime-web (WASM)</span></p>
+  <span class="dim">โมเดล <a href="https://huggingface.co/iapp/OpenThai2.0-OCR-Text" target="_blank" rel="noopener">OpenThai2.0-OCR-Text</a> / <a href="https://huggingface.co/iapp/OpenThai2.1-OCR-Text-20261118" target="_blank" rel="noopener">OpenThai2.1-OCR-Text-20261118</a> (Apache-2.0) · onnxruntime-web (WASM)</span></p>
 </header>
 
 <main>
@@ -26,6 +26,7 @@
 
   <section id="controls" class="row">
     <button id="btnSample" type="button">✨ ลองกับรูปตัวอย่าง</button>
+    <label class="opt">โมเดล <select id="modelSel"></select></label>
     <label class="opt"><input type="checkbox" id="optOrient" checked> auto-orient (หมุน/ดีสกิวอัตโนมัติ)</label>
     <label class="opt"><input type="checkbox" id="optFilter" checked> กรองบรรทัดความมั่นใจต่ำ</label>
     <span id="status" class="status">ยังไม่ได้โหลดโมเดล — เริ่มใช้งานได้เลย โมเดลจะโหลดครั้งแรกครั้งเดียว</span>

@@ -16,7 +16,11 @@
   const DET = { limit: 1280, thresh: 0.2, boxThresh: 0.4, unclip: 1.4,
                 minSize: 3, maxCandidates: 3000, splitGap: 1.2 };
   const REC = { height: 48, maxW: 3200, batch: 16, dropBelow: 0.8,
-                minChars: 2, junkBelow: 0.9, junkInvalid: 0.05 };
+                minChars: 2, junkBelow: 0.9, junkInvalid: 0.05,
+                // v2.1.3/2.1.4: single-digit and single-letter table cells survive
+                // the filter when the box is tall enough (min_chars_digits(_height),
+                // min_chars_latin); null/0/false keep the plain min_chars rule.
+                minCharsDigits: null, minCharsDigitsHeight: 0, minCharsLatin: false };
   const ORI = { sample: 8, flipBelow: 0.8, flipMargin: 0.15, deskewAbove: 2.5 };
   // ImageNet mean/std applied on BGR channels (the Paddle detector's order).
   const DET_MEAN = [0.485, 0.456, 0.406];
@@ -764,37 +768,123 @@
   }
 
   // ---- engine ---------------------------------------------------------------
+  // ---- v2.1 runtime additions (ported from line_engine.py v2.1.4) ----------
+  const DIGITS = new Set('0123456789๐๑๒๓๔๕๖๗๘๙');
+  const LATIN = new Set('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz');
+
+  // line_engine._mixed: Latin letters inside tokens that also hold Thai letters
+  // (loopless fonts misread as Latin look-alikes, e.g. "lละพลNSะทU" -> 4).
+  function mixedLatin(text) {
+    let n = 0;
+    for (const tok of text.split(/\s+/)) {
+      if (!tok) continue;
+      let thai = false, lat = 0;
+      for (const ch of tok) {
+        const c = ch.codePointAt(0);
+        if (c >= 0x0e01 && c <= 0x0e4e) thai = true;
+        else if ((c >= 0x41 && c <= 0x5a) || (c >= 0x61 && c <= 0x7a)) lat++;
+      }
+      if (thai) n += lat;
+    }
+    return n;
+  }
+
+  // line_engine.line_height: median height over line-shaped boxes (>=2x wider
+  // than tall) so fragment boxes don't skew the page's line height.
+  function lineHeight(boxes) {
+    if (!boxes || !boxes.length) return 1.0;
+    const hs = boxes.map(b => Math.max(len2(b[0], b[3]), 1.0));
+    const rowLike = [];
+    boxes.forEach((b, i) => { if (len2(b[0], b[1]) >= 2 * hs[i]) rowLike.push(hs[i]); });
+    const pool = rowLike.length >= 3 ? rowLike : hs;
+    const s = [...pool].sort((a, b) => a - b);
+    const mid = s.length >> 1;
+    return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+  }
+
+  // line_engine._DECIMAL_COMMA (v2.1.4): "88,226,21" -> "88,226.21" — an amount
+  // whose last comma has exactly two digits after it gets a decimal point.
+  // Written without lookbehind for older Safari.
+  function decimalCommaFix(text) {
+    return text.replace(/(^|[^\d.,])(\d{1,3}(?:,\d{3})*),(\d{2})(?![\d.,])/g,
+      (m, pre, whole, dec) => pre + whole + '.' + dec);
+  }
+
   class OcrEngine {
-    constructor(base = '') {
+    // base = model directory (e.g. 'models/' or 'models21/'); the v2.1 runtime
+    // additions activate automatically through that directory's config.json.
+    constructor(base = 'models/') {
       this.base = base;
       this.chars = null;
       this.detSession = null;
       this.recSession = null;
+      this.rec2File = null;
+      this.decimalComma = false;
+      this._rec2p = null;
+      this._rec2buf = null;
     }
 
-    async load(onStatus) {
+    async load(onStatus, files = {}) {
       onStatus && onStatus('dict');
-      const dictText = await (await fetch(this.base + 'models/rec_dict.txt')).text();
+      const dictText = files.dict ?? (files.dict =
+        await (await fetch(this.base + 'rec_dict.txt')).text());
       const dict = dictText.split('\n').map(s => s.replace(/\r$/, '')).filter(s => s.length > 0);
       this.chars = ['', ...dict, ' '];
-      try {
-        const cfg = await (await fetch(this.base + 'models/config.json')).json();
-        if (cfg.rec) {
-          if (typeof cfg.rec.drop_below === 'number') REC.dropBelow = cfg.rec.drop_below;
-          if (typeof cfg.rec.min_chars === 'number') REC.minChars = cfg.rec.min_chars;
-          if (typeof cfg.rec.junk_below === 'number') REC.junkBelow = cfg.rec.junk_below;
-          if (typeof cfg.rec.junk_invalid === 'number') REC.junkInvalid = cfg.rec.junk_invalid;
-        }
-      } catch (e) { /* shipped defaults already match */ }
+      let cfg = files.cfg;
+      if (!cfg) {
+        try { cfg = files.cfg = await (await fetch(this.base + 'config.json')).json(); }
+        catch (e) { /* shipped defaults already match */ }
+      }
+      if (cfg && cfg.rec) {
+        if (typeof cfg.rec.drop_below === 'number') REC.dropBelow = cfg.rec.drop_below;
+        if (typeof cfg.rec.min_chars === 'number') REC.minChars = cfg.rec.min_chars;
+        if (typeof cfg.rec.junk_below === 'number') REC.junkBelow = cfg.rec.junk_below;
+        if (typeof cfg.rec.junk_invalid === 'number') REC.junkInvalid = cfg.rec.junk_invalid;
+        if (cfg.rec.min_chars_digits != null) REC.minCharsDigits = cfg.rec.min_chars_digits;
+        else REC.minCharsDigits = null;
+        if (typeof cfg.rec.min_chars_digits_height === 'number')
+          REC.minCharsDigitsHeight = cfg.rec.min_chars_digits_height;
+        if (typeof cfg.rec.min_chars_latin === 'boolean')
+          REC.minCharsLatin = cfg.rec.min_chars_latin;
+      }
+      this.rec2File = (cfg && cfg.rec2 && cfg.rec2.file) ? this.base + cfg.rec2.file : null;
+      this.decimalComma = !!(cfg && cfg.join && cfg.join.decimal_comma);
+      this._rec2p = null;
+      this._rec2buf = (this.rec2File && files.rec2) ? files.rec2 : null;
+      if (this.rec2File) {
+        onStatus && onStatus('rec2');
+        try {
+          this._rec2buf = this._rec2buf ||
+            await (await fetch(this.rec2File)).arrayBuffer();
+        } catch (e) { this.rec2File = null; }
+      }
 
       onStatus && onStatus('det');
-      this.detSession = await ort.InferenceSession.create(this.base + 'models/det.onnx',
-        { executionProviders: ['wasm'] });
+      this.detSession = files.det
+        ? await ort.InferenceSession.create(new Uint8Array(files.det.slice(0)),
+            { executionProviders: ['wasm'] })
+        : await ort.InferenceSession.create(this.base + 'det.onnx',
+            { executionProviders: ['wasm'] });
       onStatus && onStatus('rec');
-      this.recSession = await ort.InferenceSession.create(this.base + 'models/rec.onnx',
-        { executionProviders: ['wasm'] });
+      this.recSession = files.rec
+        ? await ort.InferenceSession.create(new Uint8Array(files.rec.slice(0)),
+            { executionProviders: ['wasm'] })
+        : await ort.InferenceSession.create(this.base + 'rec.onnx',
+            { executionProviders: ['wasm'] });
       this.detInput = this.detSession.inputNames[0];
       this.recInput = this.recSession.inputNames[0];
+    }
+
+    // rec2 (v2.1.2): second recognizer trained with loopless fonts as well;
+    // created lazily on the first re-read, buffer already fetched in load().
+    async rec2Session() {
+      if (!this.rec2File) return null;
+      if (!this._rec2p) {
+        this._rec2p = ort.InferenceSession.create(
+          new Uint8Array(this._rec2buf.slice(0)), { executionProviders: ['wasm'] });
+      }
+      try { return await this._rec2p; }
+      catch (e) { this._rec2p = null; return null; }
     }
 
     get ready() { return !!(this.detSession && this.recSession && this.chars); }
@@ -858,8 +948,9 @@
     }
 
     // -- recognition ----------------------------------------------------------
-    async recognizeDetail(crops, onBatch) {
+    async recognizeDetail(crops, onBatch, session) {
       const H = REC.height;
+      const sess = session || this.recSession;
       const flat = [];
       for (const cr of crops) {
         const rw = Math.max(1, Math.ceil(H * cr.width / Math.max(cr.height, 1)));
@@ -888,9 +979,9 @@
             }
           }
         });
-        const results = await this.recSession.run(
-          { [this.recInput]: new ort.Tensor('float32', batch, [N, 3, H, W]) });
-        const t = results[this.recSession.outputNames[0]];
+        const results = await sess.run(
+          { [sess.inputNames[0]]: new ort.Tensor('float32', batch, [N, 3, H, W]) });
+        const t = results[sess.outputNames[0]];
         const T = t.dims[1], C = t.dims[2];
         idx.forEach((i, nn) => {
           out[i] = ctcDecode(t.data.subarray(nn * T * C, (nn + 1) * T * C),
@@ -920,6 +1011,24 @@
           if (alt.conf > best.conf) best = { text: alt.text, conf: alt.conf, chars: null };
         out[nn] = best;
       });
+      // rec2 re-read (v2.1.2, line_engine._read_boxes): a line whose reading has
+      // Latin letters inside a Thai word ("lละพลNSะทU" — a loopless face read as
+      // Latin look-alikes) is read again with the loopless-font recognizer and
+      // the second reading kept only if it has fewer such letters.
+      if (this.rec2File) {
+        const sus = [];
+        out.forEach((r, nn) => { if (mixedLatin(r.text) >= 1) sus.push(nn); });
+        if (sus.length) {
+          const s2 = await this.rec2Session();
+          if (s2) {
+            const alts = await this.recognizeDetail(sus.map(nn => raw[nn]), null, s2);
+            sus.forEach((nn, j) => {
+              if (mixedLatin(alts[j].text) < mixedLatin(out[nn].text))
+                out[nn] = { text: alts[j].text, conf: alts[j].conf, chars: null };
+            });
+          }
+        }
+      }
       return out;
     }
 
@@ -1035,23 +1144,38 @@
       return mean(res.map(r => r.conf)) > up + ORI.flipMargin;
     }
 
-    // Apply the line filter + reading order to a finished page.
+    // Apply the line filter + reading order to a finished page (line_engine
+    // assemble + _drop_reason, with the v2.1.3/2.1.4 cell exceptions).
     assemble(page, filter) {
       const frag = fragments(page.boxes, page.rec);
+      const hmed = lineHeight(page.boxes);
       const lines = [], dropped = [], rowTexts = [];
       page.rows.forEach((r, ri) => {
         const parts = [];
         for (const i of r) {
           const raw = page.rec[i];
-          const text = fixScripts(canonical(raw.text));
+          let text = fixScripts(canonical(raw.text));
+          if (this.decimalComma) text = decimalCommaFix(text);
           const conf = raw.conf;
           const entry = { text, conf: Math.round(conf * 10000) / 10000, row: ri, box: page.boxes[i] };
           let reason = null;
           if (frag.has(i)) continue;
           if (!text) reason = 'empty';
           else if (filter && conf < REC.dropBelow) reason = 'low_confidence';
-          else if (filter && text.replace(/ /g, '').length < REC.minChars) reason = 'too_short';
-          else if (filter && conf < REC.junkBelow && invalidShare(text) > REC.junkInvalid) reason = 'invalid_thai';
+          else {
+            const bare = text.replace(/ /g, '');
+            let short = REC.minChars;
+            // A lone digit (or letter, 2.1.4) in a table cell is not junk when
+            // its box is tall enough to be a real line (min_chars_digits(_height),
+            // min_chars_latin).
+            if (REC.minCharsDigits != null && bare.length &&
+                [...bare].every(ch => DIGITS.has(ch) || (REC.minCharsLatin && LATIN.has(ch))) &&
+                (REC.minCharsDigitsHeight <= 0 ||
+                 Math.max(len2(page.boxes[i][0], page.boxes[i][3]), 1.0) / hmed >= REC.minCharsDigitsHeight))
+              short = REC.minCharsDigits;
+            if (bare.length < short) reason = 'too_short';
+            else if (filter && conf < REC.junkBelow && invalidShare(text) > REC.junkInvalid) reason = 'invalid_thai';
+          }
           if (reason) { dropped.push({ ...entry, reason }); continue; }
           parts.push(text);
           lines.push(entry);

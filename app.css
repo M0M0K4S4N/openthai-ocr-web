@@ -59,6 +59,12 @@ button:hover { filter: brightness(1.1); }
 button:disabled { opacity: .45; cursor: wait; }
 button.ghost { background: var(--panel2); color: var(--text); border: 1px solid var(--line); }
 .opt { color: var(--dim); font-size: 13px; user-select: none; }
+.opt select {
+  background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+  border-radius: 8px; padding: 5px 8px; font-size: 13px; font-family: inherit;
+  cursor: pointer; max-width: 260px;
+}
+.opt select:disabled { opacity: .45; cursor: wait; }
 
 .status { margin-left: auto; font-size: 13px; color: var(--dim); }
 .status.err { color: var(--bad); }

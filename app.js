@@ -17,8 +17,21 @@
   const statsEl = $('#stats');
 
   const ORT_BASE = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/';
+  const MODELS = [
+    { dir: 'models/', label: 'OpenThai2.0-OCR-Text (v2.0.0)' },
+    { dir: 'models21/', label: 'OpenThai2.1-OCR-Text (v2.1.4)' },
+  ];
+  const modelSel = $('#modelSel');
+  const modelCache = {}; // per-model-dir fetched dict/cfg/onnx buffers
   let engine = null;
   let busy = false;
+
+  for (const m of MODELS) {
+    const o = document.createElement('option');
+    o.value = m.dir;
+    o.textContent = m.label;
+    modelSel.appendChild(o);
+  }
 
   function setStatus(msg, cls) {
     statusEl.textContent = msg;
@@ -29,22 +42,31 @@
     busy = b;
     [btnSample, btnCopy, btnClear].forEach(el => el.disabled = b);
     fileInput.disabled = b;
+    modelSel.disabled = b;
   }
 
   async function ensureEngine() {
-    if (engine && engine.ready) return engine;
-    if (!engine) engine = new window.OcrEngine('');
+    const dir = modelSel.value;
+    const label = (MODELS.find(m => m.dir === dir) || {}).label || dir;
+    if (engine && engine.ready && engine.base === dir) return engine;
     if (!window.ort) throw new Error('โหลด onnxruntime-web จาก CDN ไม่สำเร็จ (ต้องมีอินเทอร์เน็ตครั้งแรก)');
     ort.env.wasm.wasmPaths = ORT_BASE;
     ort.env.wasm.numThreads = 1; // no COOP/COEP headers on static hosting
-    setStatus('กำลังโหลดโมเดล (det 1.8MB + rec 2.4MB) ...');
-    await engine.load((what) => {
-      const names = { dict: 'dictionary', det: 'detector', rec: 'recognizer' };
-      setStatus(`กำลังโหลด ${names[what] || what} ...`);
-    });
-    setStatus('โมเดลพร้อมแล้ว ✓', 'ok');
+    const files = (modelCache[dir] = modelCache[dir] || {});
+    const eng = new window.OcrEngine(dir);
+    setStatus(`กำลังโหลดโมเดล ${label} ...`);
+    await eng.load((what) => {
+      const names = { dict: 'dictionary', det: 'detector', rec: 'recognizer', rec2: 'recognizer #2 (loopless)' };
+      setStatus(`กำลังโหลด ${names[what] || what} — ${label} ...`);
+    }, files);
+    engine = eng;
+    setStatus(`โมเดลพร้อมแล้ว ✓ (${label})`, 'ok');
     return engine;
   }
+
+  modelSel.addEventListener('change', () => {
+    if (!busy) setStatus('เปลี่ยนโมเดลแล้ว — จะโหลดอัตโนมัติเมื่อใช้งานครั้งถัดไป');
+  });
 
   // ---------- image intake ----------
   function fileToCanvas(file) {
@@ -177,7 +199,9 @@
       resultWrap.classList.remove('hidden');
       const avgConf = res.lines.length
         ? (res.lines.reduce((a, l) => a + l.conf, 0) / res.lines.length).toFixed(3) : '—';
+      const label = (MODELS.find(m => m.dir === engine.base) || {}).label || engine.base;
       statsEl.innerHTML =
+        `<span>โมเดล <b>${label}</b></span>` +
         `<span>บรรทัดที่อ่านได้ <b>${res.lines.length}</b></span>` +
         `<span>conf เฉลี่ย <b>${avgConf}</b></span>` +
         `<span>กรองทิ้ง <b>${res.dropped.length}</b></span>` +
